@@ -39,7 +39,7 @@
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/uri.h>
-#include "lab4.h"
+#include "lab5.h"
 
 #define SEED_URL "http://ece252-1.uwaterloo.ca/lab4/"
 #define ECE252_HEADER "X-Ece252-Fragment: "

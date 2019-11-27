@@ -1,4 +1,4 @@
-#include "lab4.h"
+#include "lab5.h"
 
 void push_head(LL *new_head, LL **list)
 {
