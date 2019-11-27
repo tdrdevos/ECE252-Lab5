@@ -1,20 +1,23 @@
 # Makefile, ECE252  
-# Yiqing Huang
+# Yiqing Huang <yqhuang@uwaterloo.ca>
 
 CC = gcc 
-CFLAGS_LIBS = $(shell pkg-config --cflags libxml-2.0 libcurl)
-CFLAGS = -Wall $(CFLAGS_LIBS) -std=gnu99 -g
+CFLAGS_XML2 = $(shell xml2-config --cflags)
+CFLAGS_CURL = $(shell curl-config --cflags)
+CFLAGS = -Wall $(CFLAGS_XML2) $(CFLAGS_CURL) -std=gnu99 -g -DDEBUG1_
 LD = gcc
-LDFLAGS = -std=gnu99 -g 
-LDLIBS = $(shell pkg-config --libs libxml-2.0 libcurl)
+LDFLAGS = -std=gnu99 -g -lcurl -lpthread
+LDLIBS_XML2 = $(shell xml2-config --libs)
+LDLIBS_CURL = $(shell curl-config --libs)
+LDLIBS = $(LDLIBS_XML2) $(LDLIBS_CURL) 
 
-SRCS   = curl_multi_test.c
-OBJS1  = curl_multi_test.o
-TARGETS= curl_multi_test.out 
+SRCS   = main.c LL.c pngtools.c
+OBJS3  = main.o LL.o pngtools.o
+TARGETS= findpng2
 
 all: ${TARGETS}
 
-curl_multi_test.out: $(OBJS1) 
+findpng2: $(OBJS3) 
 	$(LD) -o $@ $^ $(LDLIBS) $(LDFLAGS) 
 
 %.o: %.c 
@@ -27,4 +30,4 @@ curl_multi_test.out: $(OBJS1)
 
 .PHONY: clean
 clean:
-	rm -f *~ *.d *.o $(TARGETS) 
+	rm -f *~ *.d *.o $(TARGETS) *.png *.html *.txt
