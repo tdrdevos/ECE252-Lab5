@@ -33,7 +33,6 @@
 #include <search.h>
 #include <unistd.h>
 #include <curl/curl.h>
-#include <pthread.h>
 #include <search.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
@@ -84,10 +83,6 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf);
 LL *linkpool;
 LL *loglist;
 LL *pnglist;
-unsigned int t_processing = 0;
-pthread_mutex_t linkpool_m;
-pthread_mutex_t loglist_m;
-pthread_mutex_t pnglist_m;
 
 int NUM_FILES;
 int pngsfound = 0;
@@ -100,16 +95,10 @@ ENTRY *found;
 void global_init()
 {
     hcreate(1000);
-    pthread_mutex_init(&linkpool_m, NULL);
-    pthread_mutex_init(&loglist_m, NULL);
-    pthread_mutex_init(&pnglist_m, NULL);
 }
 
 void global_destroy()
 {
-    pthread_mutex_destroy(&linkpool_m);
-    pthread_mutex_destroy(&loglist_m);
-    pthread_mutex_destroy(&pnglist_m);
     hdestroy();
     xmlCleanupParser();
 }
@@ -195,13 +184,11 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 // Add to stack
                 LL *new_html_item = malloc(sizeof(LL));
                 new_html_item->buf = (char *)href;
-                pthread_mutex_lock(&linkpool_m);
                 //printf("ADDING TO STACK %s\n", new_html_item->buf);
                 push_head(new_html_item, &linkpool);
                 //printf("%x\n", linkpool);
                 //LL* thing = pop_head(&linkpool);
                 //printf("AAAA: %s\n",thing->buf);
-                pthread_mutex_unlock(&linkpool_m);
                 // printf("href: %s\n", href);
             }
             // xmlFree(href);
@@ -451,13 +438,11 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
         new_png_item->buf = malloc(sizeof(char) * 256);
         strcpy(new_png_item->buf, eurl);
 
-        pthread_mutex_lock(&pnglist_m);
         if (pngsfound < NUM_FILES)
         {
             push_head(new_png_item, &pnglist);
             pngsfound++;
         }
-        pthread_mutex_unlock(&pnglist_m);
 
         return 1;
     }
@@ -520,10 +505,9 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     return 1;
 }
 
-void *threadrun(void *arg)
+void run()
 {
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    int t_id = *(int *)arg;
     while (1)
     {
         CURL *curl_handle;
@@ -533,36 +517,22 @@ void *threadrun(void *arg)
 
         while (1)
         {
-            pthread_mutex_lock(&pnglist_m);
             if (pngsfound >= NUM_FILES)
             {
-                pthread_mutex_unlock(&pnglist_m);
                 return 0;
             }
-            pthread_mutex_unlock(&pnglist_m);
 
-            pthread_mutex_lock(&linkpool_m);
             curaddr = pop_head(&linkpool);
             if (curaddr == NULL)
             {
-                if (t_processing <= 0)
-                {
-                    // logt("Pool empty and all processes done. Exiting...", t_id);
-                    pthread_mutex_unlock(&linkpool_m);
-                    return 0;
-                }
-                pthread_mutex_unlock(&linkpool_m);
+                return 0;
             }
             else
             {
-                t_processing++;
-                pthread_mutex_unlock(&linkpool_m);
-                // logt("Starting processing...", t_id);
                 break;
             }
         }
 
-        pthread_mutex_lock(&loglist_m);
         hashEntry.key = curaddr->buf;
         found = hsearch(hashEntry, FIND);
         if (found == NULL)
@@ -572,7 +542,6 @@ void *threadrun(void *arg)
             // LL *newaddr = malloc(sizeof(LL));
             // newaddr->buf = curaddr->buf;
             push_head(curaddr, &loglist);
-            pthread_mutex_unlock(&loglist_m);
             curl_handle = easy_handle_init(&recv_buf, curaddr->buf);
             if (curl_handle == NULL)
             {
@@ -602,11 +571,7 @@ void *threadrun(void *arg)
         {
             xmlFree(curaddr->buf);
             free(curaddr);
-            pthread_mutex_unlock(&loglist_m);
         }
-        pthread_mutex_lock(&linkpool_m);
-        t_processing--;
-        pthread_mutex_unlock(&linkpool_m);
     }
 
     curl_global_cleanup();
@@ -673,9 +638,6 @@ int main(int argc, char **argv)
     NUM_FILES = m;
     // printf("t: %i, m: %i, v: %s, seedurl: %s\n", t, NUM_FILES, v, seedurl);
 
-    pthread_t *threads = malloc(t * sizeof(pthread_t));
-    // int *success = malloc(t);
-
     //Pre-threading mutex setup
     global_init();
 
@@ -693,27 +655,15 @@ int main(int argc, char **argv)
     }
     times[0] = (tv.tv_sec) + tv.tv_usec / 1000000.;
 
-    int i;
-    for (i = 0; i < t; ++i)
-    {
-        int *cur_id = malloc(sizeof(int));
-        *cur_id = i;
-        pthread_create(&threads[i], NULL, threadrun, cur_id);
-        free(cur_id);
-    }
+    run();
 
-    for (i = 0; i < t; ++i)
-    {
-        pthread_join(threads[i], NULL);
-        //printf("Success: %i\n", i);
-    }
     if (gettimeofday(&tv, NULL) != 0)
     {
         perror("gettimeofday");
         abort();
     }
     times[1] = (tv.tv_sec) + tv.tv_usec / 1000000.;
-    printf("findpng2 execution time: %.6f seconds\n", times[1] - times[0]);
+    printf("findpng3 execution time: %.6f seconds\n", times[1] - times[0]);
 
     // Outputting list of URLs
     // printf("PNG LINKS:\n");
@@ -756,7 +706,6 @@ int main(int argc, char **argv)
     if (log)
         fclose(fileptr);
 
-    free(threads);
     global_destroy();
     return 0;
 }
