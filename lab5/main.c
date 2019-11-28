@@ -534,7 +534,6 @@ int run()
     CURLMsg *msg = NULL;
     CURLcode return_code = 0;
     int still_running = 0, msgs_left = 0;
-    RECV_BUF *recv_buf;
 
     curl_global_init(CURL_GLOBAL_ALL);
 
@@ -581,6 +580,8 @@ int run()
                     continue;
                 }
 
+                RECV_BUF *recv_buf;
+
                 curl_easy_getinfo(eh, CURLINFO_PRIVATE, &recv_buf);
 
                 process_data(eh, recv_buf);
@@ -591,8 +592,8 @@ int run()
             {
                 fprintf(stderr, "error: after curl_multi_info_read(), CURLMsg=%d\n", msg->msg);
             }
-            curl_multi_cleanup(cm);
         }
+        curl_multi_cleanup(cm);
     }
 
     curl_global_cleanup();
