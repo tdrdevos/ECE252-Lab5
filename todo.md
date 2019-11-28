@@ -1,0 +1,4 @@
+- Set CURLOPT_PRIVATE to malloced recv_buf pointer in init()
+- Copy over tester code (i.e. implement all the multicurl in run + connect it to process_data())
+- Retrieve recv_buf in run() through curl_getinfo(...IPC_PRIVATE...)
+- modify cleanup to free recv_buf as well

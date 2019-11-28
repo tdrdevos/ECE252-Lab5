@@ -83,6 +83,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf);
 LL *linkpool;
 LL *loglist;
 LL *pnglist;
+int t = 1;
 
 int NUM_FILES;
 int pngsfound = 0;
@@ -375,6 +376,12 @@ CURL *easy_handle_init(RECV_BUF *ptr, const char *url)
     /* specify URL to get */
     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
 
+    curl_easy_setopt(eh, CURLOPT_PRIVATE, url);
+
+    curl_easy_setopt(eh, CURLOPT_HEADER, 0L);
+
+    curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
+
     /* register write call back function to process received data */
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_cb_curl3);
     /* user defined data structure passed to the call back function */
@@ -505,32 +512,66 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     return 1;
 }
 
+int init(CURLM *cm)
+{
+    int linksfound = 0;
+    for (int i = 0; i < t; ++i)
+    {
+        LL *curaddr = pop_head(&linkpool);
+        if (curaddr == NULL)
+        {
+            if (linksfound == 0)
+                return 0;
+            else
+                return 1;
+        }
+        else
+        {
+            hashEntry.key = curaddr->buf;
+            found = hsearch(hashEntry, FIND);
+            if (found == NULL)
+            {
+                // Enter into Hash
+                hsearch(hashEntry, ENTER);
+                push_head(curaddr, &loglist);
+
+                CURL *eh = easy_handle_init(&recv_buf, curaddr->buf);
+
+                curl_multi_add_handle(cm, eh);
+                free(curaddr);
+                linksfound++;
+            }
+        }
+    }
+}
+
 void run()
 {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURLM *cm = NULL;
+    CURL *eh = NULL;
+    CURLMsg *msg = NULL;
+    CURLcode return_code = 0;
+    int still_running = 0, i = 0, msgs_left = 0;
+    int http_status_code;
+    const char *szUrl;
+
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    cm = curl_multi_init();
+
     while (1)
     {
-        CURL *curl_handle;
-        CURLcode res;
-        RECV_BUF recv_buf;
-        LL *curaddr;
-
-        while (1)
+        if (pngsfound >= NUM_FILES)
         {
-            if (pngsfound >= NUM_FILES)
-            {
-                return 0;
-            }
+            return 0;
+        }
+        // CURL *curl_handle;
+        // CURLcode res;
+        // RECV_BUF recv_buf;
 
-            curaddr = pop_head(&linkpool);
-            if (curaddr == NULL)
-            {
-                return 0;
-            }
-            else
-            {
-                break;
-            }
+        if (!init(cm))
+        {
+            return 0;
         }
 
         hashEntry.key = curaddr->buf;
@@ -583,7 +624,6 @@ ENTRY hashEntry;
 int main(int argc, char **argv)
 {
     int c;
-    int t = 1;
     int m = 50;
     char v[256] = "log.txt";
     int log = 0;
