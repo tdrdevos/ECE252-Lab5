@@ -376,11 +376,11 @@ CURL *easy_handle_init(RECV_BUF *ptr, const char *url)
     /* specify URL to get */
     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
 
-    curl_easy_setopt(eh, CURLOPT_PRIVATE, url);
+    curl_easy_setopt(curl_handle, CURLOPT_PRIVATE, ptr);
 
-    curl_easy_setopt(eh, CURLOPT_HEADER, 0L);
+    curl_easy_setopt(curl_handle, CURLOPT_HEADER, 0L);
 
-    curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 0L);
 
     /* register write call back function to process received data */
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_cb_curl3);
@@ -515,8 +515,10 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
 int init(CURLM *cm)
 {
     int linksfound = 0;
-    for (int i = 0; i < t; ++i)
+    while (1)
     {
+        if (linksfound == t)
+            return 1;
         LL *curaddr = pop_head(&linkpool);
         if (curaddr == NULL)
         {
@@ -535,11 +537,17 @@ int init(CURLM *cm)
                 hsearch(hashEntry, ENTER);
                 push_head(curaddr, &loglist);
 
-                CURL *eh = easy_handle_init(&recv_buf, curaddr->buf);
+                RECV_BUF *recv_buf = malloc(sizeof(RECV_BUF));
+                CURL *eh = easy_handle_init(recv_buf, curaddr->buf);
 
                 curl_multi_add_handle(cm, eh);
                 free(curaddr);
                 linksfound++;
+            }
+            else
+            {
+                xmlFree(curaddr->buf);
+                free(curaddr);
             }
         }
     }
