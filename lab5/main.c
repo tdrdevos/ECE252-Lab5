@@ -119,7 +119,6 @@ htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
 
     if (doc == NULL)
     {
-        // fprintf(stderr, "Document not parsed successfully.\n");
         return NULL;
     }
     return doc;
@@ -134,20 +133,17 @@ xmlXPathObjectPtr getnodeset(xmlDocPtr doc, xmlChar *xpath)
     context = xmlXPathNewContext(doc);
     if (context == NULL)
     {
-        // printf("Error in xmlXPathNewContext\n");
         return NULL;
     }
     result = xmlXPathEvalExpression(xpath, context);
     xmlXPathFreeContext(context);
     if (result == NULL)
     {
-        //printf("Error in xmlXPathEvalExpression\n");
         return NULL;
     }
     if (xmlXPathNodeSetIsEmpty(result->nodesetval))
     {
         xmlXPathFreeObject(result);
-        //printf("No result\n");
         return NULL;
     }
     return result;
@@ -155,7 +151,6 @@ xmlXPathObjectPtr getnodeset(xmlDocPtr doc, xmlChar *xpath)
 
 int find_http(char *buf, int size, int follow_relative_links, const char *base_url)
 {
-
     int i;
     htmlDocPtr doc;
     xmlChar *xpath = (xmlChar *)"//a/@href";
@@ -187,14 +182,8 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 // Add to stack
                 LL *new_html_item = malloc(sizeof(LL));
                 new_html_item->buf = (char *)href;
-                //printf("ADDING TO STACK %s\n", new_html_item->buf);
                 push_head(new_html_item, &linkpool);
-                //printf("%x\n", linkpool);
-                //LL* thing = pop_head(&linkpool);
-                //printf("AAAA: %s\n",thing->buf);
-                // printf("href: %s\n", href);
             }
-            // xmlFree(href);
         }
         xmlXPathFreeObject(result);
     }
@@ -380,19 +369,12 @@ CURL *easy_handle_init(RECV_BUF *ptr, const char *url)
 
     curl_easy_setopt(curl_handle, CURLOPT_PRIVATE, ptr);
 
-    curl_easy_setopt(curl_handle, CURLOPT_HEADER, 0L);
-
     curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 0L);
 
     /* register write call back function to process received data */
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_cb_curl3);
     /* user defined data structure passed to the call back function */
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)ptr);
-
-    /* register header call back function to process received header data */
-    curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, header_cb_curl);
-    /* user defined data structure passed to the call back function */
-    curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA, (void *)ptr);
 
     /* some servers requires a user-agent field */
     curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ece252 lab4 crawler");
@@ -407,11 +389,11 @@ CURL *easy_handle_init(RECV_BUF *ptr, const char *url)
     curl_easy_setopt(curl_handle, CURLOPT_ACCEPT_ENCODING, "");
 
     /* Max time in seconds that the connection phase to the server to take */
-    //curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 5L);
     /* Max time in seconds that libcurl transfer operation is allowed to take */
-    //curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 10L);
     /* Time out for Expect: 100-continue response in milliseconds */
-    //curl_easy_setopt(curl_handle, CURLOPT_EXPECT_100_TIMEOUT_MS, 0L);
+    curl_easy_setopt(curl_handle, CURLOPT_EXPECT_100_TIMEOUT_MS, 0L);
 
     /* Enable the cookie engine without reading any initial cookies */
     curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, "");
@@ -429,7 +411,6 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL;
 
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    // printf("GOT HERE\n");
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url);
 
     return 1;
@@ -442,7 +423,6 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
     if (is_png(p_recv_buf->buf))
     {
-        // printf("Png valid, pushing to final stack...\nLink: %s\n", eurl);
         LL *new_png_item = malloc(sizeof(LL));
         new_png_item->buf = malloc(sizeof(char) * 256);
         strcpy(new_png_item->buf, eurl);
@@ -457,7 +437,6 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
     else
     {
-        // printf("Found a png link that is not a real PNG:\nLink: %s\n", eurl);
         return 0;
     }
 }
@@ -481,7 +460,6 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
     if (response_code >= 400)
     {
-        // fprintf(stderr, "Error.\n");
         return 1;
     }
 
@@ -505,12 +483,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     {
         return process_png(curl_handle, p_recv_buf);
     }
-    // else
-    // {
-    //     printf("Found file of type: %s, doing nothing...", ct);
-    // }
 
-    // return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
     return 1;
 }
 
@@ -543,7 +516,6 @@ int init(CURLM *cm)
                 CURL *eh = easy_handle_init(recv_buf, curaddr->buf);
 
                 curl_multi_add_handle(cm, eh);
-                free(curaddr);
                 linksfound++;
             }
             else
@@ -555,7 +527,7 @@ int init(CURLM *cm)
     }
 }
 
-void run()
+int run()
 {
     CURLM *cm = NULL;
     CURL *eh = NULL;
@@ -566,22 +538,20 @@ void run()
 
     curl_global_init(CURL_GLOBAL_ALL);
 
-    cm = curl_multi_init();
-
     while (1)
     {
         if (pngsfound >= NUM_FILES)
         {
             return 0;
         }
-        // CURL *curl_handle;
-        // CURLcode res;
-        // RECV_BUF recv_buf;
+
+        cm = curl_multi_init();
 
         if (!init(cm))
         {
             return 0;
         }
+        still_running = 0;
 
         curl_multi_perform(cm, &still_running);
 
@@ -592,14 +562,8 @@ void run()
             if (res != CURLM_OK)
             {
                 fprintf(stderr, "error: curl_multi_wait() returned %d\n", res);
-                return EXIT_FAILURE;
+                //return EXIT_FAILURE;
             }
-            /*
-            if(!numfds) {
-                fprintf(stderr, "error: curl_multi_wait() numfds=%d\n", numfds);
-                return EXIT_FAILURE;
-            }
-            */
             curl_multi_perform(cm, &still_running);
 
         } while (still_running);
@@ -613,18 +577,13 @@ void run()
                 return_code = msg->data.result;
                 if (return_code != CURLE_OK)
                 {
-                    //fprintf(stderr, "CURL error code: %d\n", msg->data.result);
+                    curl_multi_remove_handle(cm, eh);
                     continue;
                 }
 
-                //recv_buf = NULL;
+                curl_easy_getinfo(eh, CURLINFO_PRIVATE, &recv_buf);
 
-                //curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
-                curl_easy_getinfo(eh, CURLINFO_PRIVATE, recv_buf);
-
-                /* process the download data */
                 process_data(eh, recv_buf);
-                cleanup(eh, recv_buf);
                 curl_multi_remove_handle(cm, eh);
                 curl_easy_cleanup(eh);
             }
@@ -632,45 +591,8 @@ void run()
             {
                 fprintf(stderr, "error: after curl_multi_info_read(), CURLMsg=%d\n", msg->msg);
             }
+            curl_multi_cleanup(cm);
         }
-
-        curl_multi_cleanup(cm);
-
-        // if (found == NULL)
-        // {
-        // Enter into Hash
-        // LL *newaddr = malloc(sizeof(LL));
-        // newaddr->buf = curaddr->buf;
-        //curl_handle = easy_handle_init(&recv_buf, curaddr->buf);
-        //if (curl_handle == NULL)
-        //{
-        //   fprintf(stderr, "Curl initialization failed. Exiting...\n");
-        //    curl_global_cleanup();
-        //    abort();
-        //}
-        /* get it! */
-
-        // res = curl_easy_perform(curl_handle);
-
-        //if (res != CURLE_OK)
-        // {
-        //     // logt("Reached invalid url", getpid());
-        // }
-        // else
-        // {
-        //     //printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
-
-        //     /* process the download data */
-        //     process_data(curl_handle, &recv_buf);
-        // }
-        // /* cleaning up */
-        // cleanup(curl_handle, &recv_buf);
-        // }
-        // else
-        // {
-        //     xmlFree(curaddr->buf);
-        //     free(curaddr);
-        // }
     }
 
     curl_global_cleanup();
@@ -694,7 +616,6 @@ int main(int argc, char **argv)
         {
         case 't':
             t = strtoul(optarg, NULL, 10);
-            //printf("option -t specifies a value of %d.\n", t);
             if (t <= 0)
             {
                 fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
@@ -764,7 +685,6 @@ int main(int argc, char **argv)
     printf("findpng3 execution time: %.6f seconds\n", times[1] - times[0]);
 
     // Outputting list of URLs
-    // printf("PNG LINKS:\n");
 
     LL *next;
     next = pop_head(&pnglist);
@@ -776,7 +696,6 @@ int main(int argc, char **argv)
     }
     while (next != NULL)
     {
-        // printf("%s\n", next->buf);
         fprintf(fileptr, "%s\n", next->buf);
         free(next->buf);
         free(next);

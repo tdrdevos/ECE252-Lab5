@@ -1,4 +1,4 @@
-#include "lab4.h"
+#include "lab5.h"
 
 int is_png(char *buf)
 {

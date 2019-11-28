@@ -13,11 +13,11 @@ LDLIBS = $(LDLIBS_XML2) $(LDLIBS_CURL)
 
 SRCS   = main.c LL.c pngtools.c
 OBJS3  = main.o LL.o pngtools.o
-TARGETS= findpng2
+TARGETS= findpng3
 
 all: ${TARGETS}
 
-findpng2: $(OBJS3) 
+findpng3: $(OBJS3) 
 	$(LD) -o $@ $^ $(LDLIBS) $(LDFLAGS) 
 
 %.o: %.c 
