@@ -45,6 +45,8 @@
 #define BUF_SIZE 1048576 /* 1024*1024 = 1M */
 #define BUF_INC 524288   /* 1024*512  = 0.5M */
 
+#define MAX_WAIT_MSECS 30 * 1000 /* Wait max. 30 seconds */
+
 #define CT_PNG "image/png"
 #define CT_HTML "text/html"
 #define CT_PNG_LEN 9
@@ -551,9 +553,8 @@ void run()
     CURL *eh = NULL;
     CURLMsg *msg = NULL;
     CURLcode return_code = 0;
-    int still_running = 0, i = 0, msgs_left = 0;
-    int http_status_code;
-    const char *szUrl;
+    int still_running = 0, msgs_left = 0;
+    RECV_BUF *recv_buf;
 
     curl_global_init(CURL_GLOBAL_ALL);
 
@@ -574,45 +575,94 @@ void run()
             return 0;
         }
 
-        hashEntry.key = curaddr->buf;
-        found = hsearch(hashEntry, FIND);
-        if (found == NULL)
+        curl_multi_perform(cm, &still_running);
+
+        do
         {
-            // Enter into Hash
-            hsearch(hashEntry, ENTER);
-            // LL *newaddr = malloc(sizeof(LL));
-            // newaddr->buf = curaddr->buf;
-            push_head(curaddr, &loglist);
-            curl_handle = easy_handle_init(&recv_buf, curaddr->buf);
-            if (curl_handle == NULL)
+            int numfds = 0;
+            int res = curl_multi_wait(cm, NULL, 0, MAX_WAIT_MSECS, &numfds);
+            if (res != CURLM_OK)
             {
-                fprintf(stderr, "Curl initialization failed. Exiting...\n");
-                curl_global_cleanup();
-                abort();
+                fprintf(stderr, "error: curl_multi_wait() returned %d\n", res);
+                return EXIT_FAILURE;
             }
-            /* get it! */
+            /*
+            if(!numfds) {
+                fprintf(stderr, "error: curl_multi_wait() numfds=%d\n", numfds);
+                return EXIT_FAILURE;
+            }
+            */
+            curl_multi_perform(cm, &still_running);
 
-            res = curl_easy_perform(curl_handle);
+        } while (still_running);
 
-            if (res != CURLE_OK)
+        while ((msg = curl_multi_info_read(cm, &msgs_left)))
+        {
+            if (msg->msg == CURLMSG_DONE)
             {
-                // logt("Reached invalid url", getpid());
+                eh = msg->easy_handle;
+
+                return_code = msg->data.result;
+                if (return_code != CURLE_OK)
+                {
+                    //fprintf(stderr, "CURL error code: %d\n", msg->data.result);
+                    continue;
+                }
+
+                //recv_buf = NULL;
+
+                //curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
+                curl_easy_getinfo(eh, CURLINFO_PRIVATE, recv_buf);
+
+                /* process the download data */
+                process_data(eh, recv_buf);
+                cleanup(eh, recv_buf);
+                curl_multi_remove_handle(cm, eh);
+                curl_easy_cleanup(eh);
             }
             else
             {
-                //printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
-
-                /* process the download data */
-                process_data(curl_handle, &recv_buf);
+                fprintf(stderr, "error: after curl_multi_info_read(), CURLMsg=%d\n", msg->msg);
             }
-            /* cleaning up */
-            cleanup(curl_handle, &recv_buf);
         }
-        else
-        {
-            xmlFree(curaddr->buf);
-            free(curaddr);
-        }
+
+        curl_multi_cleanup(cm);
+
+        // if (found == NULL)
+        // {
+        // Enter into Hash
+        // LL *newaddr = malloc(sizeof(LL));
+        // newaddr->buf = curaddr->buf;
+        //curl_handle = easy_handle_init(&recv_buf, curaddr->buf);
+        //if (curl_handle == NULL)
+        //{
+        //   fprintf(stderr, "Curl initialization failed. Exiting...\n");
+        //    curl_global_cleanup();
+        //    abort();
+        //}
+        /* get it! */
+
+        // res = curl_easy_perform(curl_handle);
+
+        //if (res != CURLE_OK)
+        // {
+        //     // logt("Reached invalid url", getpid());
+        // }
+        // else
+        // {
+        //     //printf("%lu bytes received in memory %p, seq=%d.\n", recv_buf.size, recv_buf.buf, recv_buf.seq);
+
+        //     /* process the download data */
+        //     process_data(curl_handle, &recv_buf);
+        // }
+        // /* cleaning up */
+        // cleanup(curl_handle, &recv_buf);
+        // }
+        // else
+        // {
+        //     xmlFree(curaddr->buf);
+        //     free(curaddr);
+        // }
     }
 
     curl_global_cleanup();
