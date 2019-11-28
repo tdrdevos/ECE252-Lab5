@@ -541,6 +541,8 @@ int run()
     {
         if (pngsfound >= NUM_FILES)
         {
+            curl_multi_cleanup(cm);
+            curl_global_cleanup();
             return 0;
         }
 
@@ -574,13 +576,18 @@ int run()
                 eh = msg->easy_handle;
 
                 return_code = msg->data.result;
-                if (return_code != CURLE_OK)
-                {
-                    curl_multi_remove_handle(cm, eh);
-                    continue;
-                }
 
                 RECV_BUF *recv_buf;
+                if (return_code != CURLE_OK)
+                {
+                    //printf("yes\n");
+                    curl_easy_getinfo(eh, CURLINFO_PRIVATE, &recv_buf);
+                    free(recv_buf->buf);
+                    free(recv_buf);
+                    curl_multi_remove_handle(cm, eh);
+                    curl_easy_cleanup(eh);
+                    continue;
+                }
 
                 curl_easy_getinfo(eh, CURLINFO_PRIVATE, &recv_buf);
 
@@ -595,7 +602,7 @@ int run()
         }
         curl_multi_cleanup(cm);
     }
-
+    curl_multi_cleanup(cm);
     curl_global_cleanup();
     return 0;
 }
