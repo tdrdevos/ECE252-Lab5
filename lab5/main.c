@@ -40,7 +40,7 @@
 #include <libxml/uri.h>
 #include "lab5.h"
 
-#define SEED_URL "http://ece252-1.uwaterloo.ca/lab4/"
+#define SEED_URL "http://ece252-1.uwaterloo.ca/lab4"
 #define ECE252_HEADER "X-Ece252-Fragment: "
 #define BUF_SIZE 1048576 /* 1024*1024 = 1M */
 #define BUF_INC 524288   /* 1024*512  = 0.5M */
@@ -539,6 +539,7 @@ int run()
 
     while (1)
     {
+        cm = curl_multi_init();
         if (pngsfound >= NUM_FILES)
         {
             curl_multi_cleanup(cm);
@@ -546,10 +547,10 @@ int run()
             return 0;
         }
 
-        cm = curl_multi_init();
-
         if (!init(cm))
         {
+            curl_multi_cleanup(cm);
+            curl_global_cleanup();
             return 0;
         }
         still_running = 0;
@@ -665,7 +666,7 @@ int main(int argc, char **argv)
     NUM_FILES = m;
     // printf("t: %i, m: %i, v: %s, seedurl: %s\n", t, NUM_FILES, v, seedurl);
 
-    //Pre-threading mutex setup
+    //Hash setup
     global_init();
 
     LL *new_html_item = malloc(sizeof(LL));
